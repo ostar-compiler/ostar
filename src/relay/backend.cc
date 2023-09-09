@@ -1,14 +1,14 @@
-#include <tvm/driver/driver_api.h>
-#include <tvm/ir/expr.h>
-#include <tvm/ir/memory_pools.h>
-#include <tvm/relay/analysis.h>
-#include <tvm/relay/executor.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/qnn/transform.h>
-#include <tvm/relay/runtime.h>
-#include <tvm/relay/transform.h>
-#include <tvm/runtime/device_api.h>
-#include <tvm/target/compilation_config.h>
+#include <ostar/driver/driver_api.h>
+#include <ostar/ir/expr.h>
+#include <ostar/ir/memory_pools.h>
+#include <ostar/relay/analysis.h>
+#include <ostar/relay/executor.h>
+#include <ostar/relay/expr.h>
+#include <ostar/relay/qnn/transform.h>
+#include <ostar/relay/runtime.h>
+#include <ostar/relay/transform.h>
+#include <ostar/runtime/device_api.h>
+#include <ostar/target/compilation_config.h>
 
 #include <memory>
 
@@ -19,19 +19,19 @@
 #include "te_compiler.h"
 #include "utils.h"
 
-namespace tvm {
+namespace ostar {
 namespace relay {
 namespace transform {
 Pass LabelOps();
 }
 namespace backend {
 
-using namespace tvm::relay::transform;
+using namespace ostar::relay::transform;
 
 struct BuildOutput {
   std::string graph_json;
   runtime::Module mod;
-  std::unordered_map<std::string, tvm::runtime::NDArray> params;
+  std::unordered_map<std::string, ostar::runtime::NDArray> params;
 };
 
 struct ExecutorCodegen {
@@ -49,8 +49,8 @@ struct ExecutorCodegen {
     return CallFunc<Map<String, FunctionInfo>>("get_function_metadata", nullptr);
   }
 
-  std::unordered_map<std::string, tvm::runtime::NDArray> GetParams() {
-    std::unordered_map<std::string, tvm::runtime::NDArray> ret;
+  std::unordered_map<std::string, ostar::runtime::NDArray> GetParams() {
+    std::unordered_map<std::string, ostar::runtime::NDArray> ret;
     auto names = CallFunc<Array<runtime::String>>("list_params_name", nullptr);
     for (const auto& expr : names) {
       std::string key = expr;
@@ -59,8 +59,8 @@ struct ExecutorCodegen {
     return ret;
   }
 
-  Array<tvm::runtime::Module> GetExternalModules() {
-    return CallFunc<Array<tvm::runtime::Module>>("get_external_modules", nullptr);
+  Array<ostar::runtime::Module> GetExternalModules() {
+    return CallFunc<Array<ostar::runtime::Module>>("get_external_modules", nullptr);
   }
 
   Map<Target, IRModule> GetIRModule() {
@@ -75,7 +75,7 @@ struct ExecutorCodegen {
   virtual ~ExecutorCodegen() {}
 
  protected:
-  tvm::runtime::Module mod;
+  ostar::runtime::Module mod;
   template <typename R, typename... Args>
   R CallFunc(const std::string& name, Args... args) {
     auto pf = mod.GetFunction(name, false);
@@ -114,9 +114,9 @@ struct GraphCodegen : ExecutorCodegen {
 
 std::unique_ptr<ExecutorCodegen> MakeExecutorCodegen(String executor_str) {
   std::unique_ptr<ExecutorCodegen> ret;
-  if (executor_str == runtime::kTvmExecutorGraph) {
+  if (executor_str == runtime::kostarExecutorGraph) {
     ret = std::make_unique<GraphCodegen>();
-  } else if (executor_str == runtime::kTvmExecutorAot) {
+  } else if (executor_str == runtime::kostarExecutorAot) {
     ret = std::make_unique<AOTCodegen>();
   } else {
     CHECK(false) << "Executor " << executor_str << " not supported";
@@ -130,56 +130,56 @@ class RelayBuildModule : public runtime::ModuleNode {
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_graph_json") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetGraphJSON(); });
+          [sptr_to_self, this](ostarArgs args, ostarRetValue* rv) { *rv = this->GetGraphJSON(); });
     } else if (name == "get_module") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetModule(); });
+          [sptr_to_self, this](ostarArgs args, ostarRetValue* rv) { *rv = this->GetModule(); });
     } else if (name == "build") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         ICHECK_EQ(args.num_args, 8);
         this->Build(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
       });
     } else if (name == "list_params") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->ListParamNames(); });
+          [sptr_to_self, this](ostarArgs args, ostarRetValue* rv) { *rv = this->ListParamNames(); });
     } else if (name == "get_params") {
       return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetParams(); });
+          [sptr_to_self, this](ostarArgs args, ostarRetValue* rv) { *rv = this->GetParams(); });
     } else if (name == "set_params") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         Map<String, Constant> params = args[0];
         for (const auto& kv : params) {
           this->SetParam(kv.first, kv.second->data);
         }
       });
     } else if (name == "get_devices") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         *rv = this->executor_codegen_->ListDevices();
       });
     } else if (name == "get_irmodule") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         *rv = this->executor_codegen_->GetIRModule();
       });
     } else if (name == "get_external_modules") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         *rv = this->executor_codegen_->GetExternalModules();
       });
     } else if (name == "get_function_metadata") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         *rv = this->executor_codegen_->GetFunctionMetadata();
       });
     } else if (name == "get_executor_codegen_metadata") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         *rv = this->executor_codegen_->GetExecutorCodegenMetadata();
       });
     } else if (name == "optimize") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return PackedFunc([sptr_to_self, this](ostarArgs args, ostarRetValue* rv) {
         ICHECK_EQ(args.num_args, 2);
         *rv = this->Optimize(args[0], args[1]);
       });
     } else {
       LOG(FATAL) << "Unknown packed function: " << name;
-      return PackedFunc([sptr_to_self, name](TVMArgs args, TVMRetValue* rv) {});
+      return PackedFunc([sptr_to_self, name](ostarArgs args, ostarRetValue* rv) {});
     }
   }
 
@@ -209,7 +209,7 @@ class RelayBuildModule : public runtime::ModuleNode {
 
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kRunnable; }
 
-  void Build(IRModule mod, const Array<Target>& raw_targets, const tvm::Target& target_host,
+  void Build(IRModule mod, const Array<Target>& raw_targets, const ostar::Target& target_host,
              const Executor& executor, const Runtime& runtime,
              const WorkspaceMemoryPools& workspace_memory_pools,
              const ConstantMemoryPools& constant_memory_pools, const String mod_name) {
@@ -301,15 +301,15 @@ class RelayBuildModule : public runtime::ModuleNode {
 
   void BuildRelay(IRModule relay_module, const String& mod_name) {
     IRModule module = WithAttrs(
-        relay_module, {{tvm::attr::kExecutor, executor_}, {tvm::attr::kRuntime, runtime_}});
+        relay_module, {{ostar::attr::kExecutor, executor_}, {ostar::attr::kRuntime, runtime_}});
     relay_module = OptimizeImpl(std::move(module));
 
     Function func = Downcast<Function>(relay_module->Lookup("main"));
     IRModule func_module = WithAttrs(IRModule::FromExpr(func),
-                                     {{tvm::attr::kExecutor, executor_},
-                                      {tvm::attr::kRuntime, runtime_},
-                                      {tvm::attr::kWorkspaceMemoryPools, workspace_memory_pools_},
-                                      {tvm::attr::kConstantMemoryPools, constant_memory_pools_}});
+                                     {{ostar::attr::kExecutor, executor_},
+                                      {ostar::attr::kRuntime, runtime_},
+                                      {ostar::attr::kWorkspaceMemoryPools, workspace_memory_pools_},
+                                      {ostar::attr::kConstantMemoryPools, constant_memory_pools_}});
 
     // Generate code for the updated function.
     executor_codegen_ = MakeExecutorCodegen(executor_->name);
@@ -332,18 +332,18 @@ class RelayBuildModule : public runtime::ModuleNode {
         CHECK(pf != nullptr) << "Unable to create empty module for llvm without llvm codegen.";
         ret_.mod = (*pf)(host_target->str(), "empty_module");
       } else {
-        ret_.mod = tvm::codegen::CSourceModuleCreate(";", "", Array<String>{});
+        ret_.mod = ostar::codegen::CSourceModuleCreate(";", "", Array<String>{});
       }
     } else {
-      ret_.mod = tvm::TIRToRuntime(lowered_funcs, host_target);
+      ret_.mod = ostar::TIRToRuntime(lowered_funcs, host_target);
     }
 
     auto ext_mods = executor_codegen_->GetExternalModules();
-    ret_.mod = tvm::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
+    ret_.mod = ostar::codegen::CreateMetadataModule(ret_.params, ret_.mod, ext_mods, host_target,
                                                   runtime_, executor_,
                                                   executor_codegen_->GetExecutorCodegenMetadata());
     // Remove external params which were stored in metadata module.
-    for (tvm::runtime::Module mod : ext_mods) {
+    for (ostar::runtime::Module mod : ext_mods) {
       auto pf_var = mod.GetFunction("get_const_vars");
       if (pf_var != nullptr) {
         Array<String> variables = pf_var();
@@ -374,12 +374,12 @@ runtime::Module RelayBuildCreate() {
   return runtime::Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("relay.build_module._BuildModule").set_body([](TVMArgs args, TVMRetValue* rv) {
+ostar_REGISTER_GLOBAL("relay.build_module._BuildModule").set_body([](ostarArgs args, ostarRetValue* rv) {
   *rv = RelayBuildCreate();
 });
 
-TVM_REGISTER_GLOBAL("relay.build_module.BindParamsByName")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+ostar_REGISTER_GLOBAL("relay.build_module.BindParamsByName")
+    .set_body([](ostarArgs args, ostarRetValue* rv) {
       Map<String, Constant> params = args[1];
       std::unordered_map<std::string, runtime::NDArray> params_;
       for (const auto& kv : params) {
